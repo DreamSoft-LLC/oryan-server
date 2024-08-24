@@ -1,0 +1,18 @@
+// log in into account
+curl -H 'Content-Type: application/json' \
+      -d '{ "email":"peeadmin@mail.com","password":"barisPassphrase"}' \
+      -X POST \
+      http://localhost:8080/auth/login
+
+// Adding an associate
+curl -H 'Content-Type: application/json' \
+      -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ik9iamVjdElEKFwiNjZjMWNmZTBmZWE3MjYxZTE4NTJlYzk1XCIpIiwiZW1haWwiOiJwZWVhZG1pbkBtYWlsLmNvbSIsInJvbGUiOiJhZG1pbiJ9.KohtHHagpO3_o3c0J9LNAKEhd6iH66cJcEBIu-J8LPg"\
+      -d '{ "email":"peeadmin@mail.com","password":"barisPassphrase","name":"Peniel Nyinaku","phone_number":"0546547509","address":"A Arhinful Ave,Sekondi-Takoradi,Western,Ghana","id_number":"GHA894839843","role":"admin"}' \
+      -X POST \
+      http://localhost:8080/associates/
+
+
+curl -H 'Content-Type: application/json' \
+      -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ik9iamVjdElEKFwiNjZjMWNmZTBmZWE3MjYxZTE4NTJlYzk1XCIpIiwiZW1haWwiOiJwZWVhZG1pbkBtYWlsLmNvbSIsInJvbGUiOiJhZG1pbiJ9.KohtHHagpO3_o3c0J9LNAKEhd6iH66cJcEBIu-J8LPg"\
+      -X GET \
+      http://localhost:8080/associates/
