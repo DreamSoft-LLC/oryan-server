@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"fmt"
 	"github.com/DreamSoft-LLC/oryan/database"
 	"github.com/DreamSoft-LLC/oryan/models"
 	"github.com/DreamSoft-LLC/oryan/utils"
@@ -8,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"net/http"
+	"strings"
 
 	"strconv"
 	"time"
@@ -28,14 +30,16 @@ func SetupTransactionRoutes(router *gin.Engine) {
 	transactionRoutes.Use(jwtAuthService.AuthMiddleware())
 	{
 		// Route to get all transaction
-		transactionRoutes.GET("/", func(context *gin.Context) {
+		transactionRoutes.GET("", func(context *gin.Context) {
 
-			filterParam, _ := context.Params.Get("filter")
-			pageParam, _ := context.Params.Get("page")
+			filterParam := context.Query("filter")
+			pageParam := context.Query("page")
 			auth, _ := context.Get("auth")
-			authentication := auth.(utils.Authentication)
+			authentication := auth.(*utils.Authentication)
 			pageSize := 10
 			page := 1
+
+			fmt.Printf("Filter: %+v\n", filterParam)
 
 			if pageParam != "" {
 				page, _ = strconv.Atoi(pageParam)
@@ -50,21 +54,20 @@ func SetupTransactionRoutes(router *gin.Engine) {
 			if authentication.Role != "admin" {
 				filter = append(filter, bson.E{Key: "associate_id", Value: authentication.ID})
 			}
-
+			now := time.Now()
 			if filterParam != "" {
-				now := time.Now()
 				switch filterParam {
 				case "today":
-					startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+					startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 					filter = append(filter, bson.E{Key: "created_at", Value: bson.M{"$gte": startOfDay}})
 				case "week":
 					startOfWeek := now.AddDate(0, 0, -int(now.Weekday()))
 					filter = append(filter, bson.E{Key: "created_at", Value: bson.M{"$gte": startOfWeek}})
 				case "month":
-					startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+					startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 					filter = append(filter, bson.E{Key: "created_at", Value: bson.M{"$gte": startOfMonth}})
 				case "year":
-					startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+					startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
 					filter = append(filter, bson.E{Key: "created_at", Value: bson.M{"$gte": startOfYear}})
 				}
 			}
@@ -104,9 +107,15 @@ func SetupTransactionRoutes(router *gin.Engine) {
 		transactionRoutes.POST("/", func(context *gin.Context) {
 			// TODO: create a new transaction
 			auth, _ := context.Get("auth")
-			authentication := auth.(utils.Authentication)
+			authentication := auth.(*utils.Authentication)
 
-			objectId, err := primitive.ObjectIDFromHex(authentication.ID)
+			idStr := authentication.ID
+			if strings.HasPrefix(idStr, "ObjectID(") && strings.HasSuffix(idStr, ")") {
+				idStr = idStr[9 : len(idStr)-1]
+			}
+			idStr = strings.Trim(idStr, "\"")
+
+			objectId, err := primitive.ObjectIDFromHex(idStr)
 
 			if err != nil {
 				context.JSON(http.StatusUnauthorized, gin.H{"error": err.Error(), "message": "You do not have permission to the resource"})
@@ -132,6 +141,8 @@ func SetupTransactionRoutes(router *gin.Engine) {
 
 			insertResult, err := database.InsertDocument(models.Collection.Transaction, utils.ConvertStructPrimitive(newtransaction))
 
+			newtransaction.ID = insertResult.InsertedID.(primitive.ObjectID)
+
 			if err != nil {
 				context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				context.Abort()
@@ -139,16 +150,17 @@ func SetupTransactionRoutes(router *gin.Engine) {
 			}
 
 			context.JSON(http.StatusOK, gin.H{
-				"created": insertResult,
-				"message": "Successfully added a new transaction",
+				"created":     insertResult,
+				"transaction": newtransaction,
+				"message":     "Successfully added a new transaction",
 			})
 			return
 
 		})
 		// Get info of a transaction
 		//not important because all data are returned in the initial get all transaction face
-		//transactionRoutes.GET("/:id", func(context *gin.Context) {
-		// get a single transaction
+		//transactionRoutes.GET("/search/:id", func(context *gin.Context) {
+		//
 		//})
 	}
 }

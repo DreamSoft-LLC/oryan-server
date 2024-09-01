@@ -61,9 +61,12 @@ func SetupAssociatesRoutes(router *gin.Engine) {
 				return
 			}
 
+			body.ID = insertResult.InsertedID.(primitive.ObjectID)
+
 			c.JSON(http.StatusOK, gin.H{
-				"created": insertResult,
-				"message": "Successfully added a new associate",
+				"created":   insertResult,
+				"associate": body,
+				"message":   "Successfully added a new associate",
 			})
 
 			return
