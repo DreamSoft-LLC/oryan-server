@@ -2,6 +2,8 @@ package database
 
 import (
 	"context"
+	"fmt"
+	"github.com/DreamSoft-LLC/oryan/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -70,4 +72,72 @@ func UpdateDocument(collection string, filter primitive.D, update interface{}) (
 
 func UpdateDocuments(collection string, filter primitive.D, update interface{}) (*mongo.UpdateResult, error) {
 	return Database.Collection(collection).UpdateMany(context.TODO(), filter, update)
+}
+
+func GetAllLoansWithAssociatesAndCustomers(filter bson.D, pageSize int, offset int) ([]bson.M, error) {
+	loanCollection := Database.Collection(models.Collection.Loan)
+	// Define the aggregation pipeline
+	pipeline := mongo.Pipeline{
+		// Match stage to filter the documents
+		{
+			{"$match", filter},
+		},
+		// Lookup Associate
+		{
+			{"$lookup", bson.D{
+				{"from", models.Collection.Associate},
+				{"localField", "associate_id"},
+				{"foreignField", "_id"},
+				{"as", "associate"},
+			}},
+		},
+		{
+			{"$unwind", bson.D{
+				{"path", "$associate"},
+				{"preserveNullAndEmptyArrays", true}, // Preserve null/empty if no associate found
+			}},
+		},
+		// Lookup Customer
+		{
+			{"$lookup", bson.D{
+				{"from", models.Collection.Customer},
+				{"localField", "customer_id"},
+				{"foreignField", "_id"},
+				{"as", "customer"},
+			}},
+		},
+		{
+			{"$unwind", bson.D{
+				{"path", "$customer"},
+				{"preserveNullAndEmptyArrays", true}, // Preserve null/empty if no customer found
+			}},
+		},
+		// Skip stage for pagination (offset)
+		{
+			{"$skip", offset},
+		},
+		// Limit stage for pagination (page size)
+		{
+			{"$limit", pageSize},
+		},
+	}
+
+	// Execute the aggregation with pagination options
+	cursor, err := loanCollection.Aggregate(context.TODO(), pipeline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute aggregation: %w", err)
+	}
+	defer func() {
+		if err := cursor.Close(context.TODO()); err != nil {
+			log.Printf("failed to close cursor: %v", err)
+		}
+	}()
+
+	// Store the results
+	var loans []bson.M
+	if err := cursor.All(context.TODO(), &loans); err != nil {
+		return nil, fmt.Errorf("failed to decode aggregation results: %w", err)
+	}
+
+	return loans, nil
 }

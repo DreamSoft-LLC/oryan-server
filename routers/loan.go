@@ -67,19 +67,7 @@ func SetupLoanRoutes(router *gin.Engine) {
 				}
 			}
 
-			cursor, err := database.FindDocumentsQuery(models.Collection.Loan, filter, pageSize, offset)
-
-			if err != nil {
-				context.JSON(http.StatusOK, gin.H{
-					"message": err.Error(),
-				})
-				context.Abort()
-				return
-			}
-
-			var loans []models.Loan
-
-			err = cursor.All(context, &loans)
+			loans_, err := database.GetAllLoansWithAssociatesAndCustomers(filter, pageSize, offset)
 
 			if err != nil {
 				context.JSON(http.StatusOK, gin.H{
@@ -90,9 +78,36 @@ func SetupLoanRoutes(router *gin.Engine) {
 			}
 
 			context.JSON(http.StatusOK, gin.H{
-				"loans": loans,
+				"loans": loans_,
 				"page":  page,
 			})
+
+			//cursor, err := database.FindDocumentsQuery(models.Collection.Loan, filter, pageSize, offset)
+			//
+			//if err != nil {
+			//	context.JSON(http.StatusOK, gin.H{
+			//		"message": err.Error(),
+			//	})
+			//	context.Abort()
+			//	return
+			//}
+			//
+			//var loans []models.Loan
+			//
+			//err = cursor.All(context, &loans)
+			//
+			//if err != nil {
+			//	context.JSON(http.StatusOK, gin.H{
+			//		"message": err.Error(),
+			//	})
+			//	context.Abort()
+			//	return
+			//}
+			//
+			//context.JSON(http.StatusOK, gin.H{
+			//	"loans": loans,
+			//	"page":  page,
+			//})
 		})
 
 		loanRoutes.POST("", func(context *gin.Context) {
