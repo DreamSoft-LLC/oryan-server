@@ -2,6 +2,11 @@ package routers
 
 import (
 	"errors"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/DreamSoft-LLC/oryan/database"
 	"github.com/DreamSoft-LLC/oryan/models"
 	"github.com/DreamSoft-LLC/oryan/utils"
@@ -9,10 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
 )
 
 func newCustomerStruct(associate primitive.ObjectID) *models.Customer {
@@ -90,10 +91,10 @@ func SetupClientRoutes(router *gin.Engine) {
 			var filter bson.D
 			if searchQuery != "" {
 				filter = bson.D{
-					{"$or", bson.A{
-						bson.D{{"name", bson.M{"$regex": searchQuery, "$options": "i"}}},  // Case-insensitive regex search
-						bson.D{{"email", bson.M{"$regex": searchQuery, "$options": "i"}}}, // Example field: email
-						bson.D{{"phone", bson.M{"$regex": searchQuery, "$options": "i"}}}, // Example field: phone
+					{Key: "$or", Value: bson.A{
+						bson.D{{Key: "name", Value: bson.M{"$regex": searchQuery, "$options": "i"}}},  // Case-insensitive regex search
+						bson.D{{Key: "email", Value: bson.M{"$regex": searchQuery, "$options": "i"}}}, // Example field: email
+						bson.D{{Key: "phone", Value: bson.M{"$regex": searchQuery, "$options": "i"}}}, // Example field: phone
 					}},
 				}
 			}
@@ -183,6 +184,7 @@ func SetupClientRoutes(router *gin.Engine) {
 			return
 
 		})
+
 		clientsRoutes.GET("/verify/:phone", func(c *gin.Context) {
 			phone := c.Param("phone")
 			if phone == "" {
@@ -192,7 +194,7 @@ func SetupClientRoutes(router *gin.Engine) {
 			}
 			var existingCustomer models.Customer
 
-			customerCursor := database.FindDocument(models.Collection.Customer, bson.D{{"phone", c.Param("phone")}})
+			customerCursor := database.FindDocument(models.Collection.Customer, bson.D{{Key: "phone", Value: c.Param("phone")}})
 
 			if err := customerCursor.Decode(&existingCustomer); err != nil {
 				if errors.Is(err, mongo.ErrNoDocuments) {
@@ -207,6 +209,94 @@ func SetupClientRoutes(router *gin.Engine) {
 			c.JSON(http.StatusOK, gin.H{
 				"customer": existingCustomer,
 				"message":  "Existing customer found",
+			})
+
+		})
+
+		clientsRoutes.GET("/:id", func(c *gin.Context) {
+			customerId := c.Param("id")
+
+			objID, err := primitive.ObjectIDFromHex(customerId)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer_id"})
+				c.Abort()
+				return
+			}
+
+			var customer models.Customer
+
+			customerCursor := database.FindDocumentById(models.Collection.Customer, customerId)
+
+			err = customerCursor.Decode(&customer)
+
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer_id"})
+				c.Abort()
+				return
+			}
+
+			var transactions []models.Transaction
+			documents, err := database.FindDocuments(models.Collection.Customer, bson.D{{Key: "customer_id", Value: objID}})
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer_id"})
+				c.Abort()
+				return
+
+			}
+			err = documents.All(c, &transactions)
+
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer_id"})
+				c.Abort()
+				return
+			}
+
+			//	get loans
+			var loans []models.Loan
+			loansCursor, err := database.FindDocuments(models.Collection.Loan, bson.D{{Key: "customer_id", Value: objID}})
+
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer_id"})
+				c.Abort()
+				return
+
+			}
+			err = loansCursor.All(c, &loans)
+
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer_id"})
+				c.Abort()
+				return
+			}
+
+			//	now do calculations
+			var totalTransactionAmount, totalLoanAmount, totalLoanSettlement float64
+
+			for _, transaction := range transactions {
+				amount, _ := strconv.ParseFloat(transaction.Amount, 64)
+				totalTransactionAmount += amount
+			}
+
+			for _, loan := range loans {
+				amount, _ := strconv.ParseFloat(loan.Amount, 64)
+				if loan.Type == "credit" { // Assuming "credit" means loan taken
+					totalLoanAmount += amount
+				} else if loan.Type == "debit" { // Assuming "debit" means loan settled
+					totalLoanSettlement += amount
+				}
+			}
+
+			totalLoanToBePaid := totalLoanAmount - totalLoanSettlement
+
+			// Respond with the results
+			c.JSON(http.StatusOK, gin.H{
+				"customer":                 customer,
+				"transactions":             transactions,
+				"loans":                    loans,
+				"total_transaction_amount": totalTransactionAmount,
+				"total_loan_amount":        totalLoanAmount,
+				"total_loan_settlement":    totalLoanSettlement,
+				"total_loan_to_be_paid":    totalLoanToBePaid,
 			})
 
 		})

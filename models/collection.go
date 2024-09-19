@@ -6,6 +6,8 @@ type Collections struct {
 	Loan          string
 	Miscellaneous string
 	Customer      string
+	Fund          string
+	Balance       string
 }
 
 var Collection = Collections{
@@ -14,4 +16,6 @@ var Collection = Collections{
 	Loan:          "loan",
 	Miscellaneous: "miscellaneous",
 	Customer:      "customer",
+	Balance:       "balance",
+	Fund:          "fund",
 }

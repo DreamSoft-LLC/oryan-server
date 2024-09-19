@@ -2,13 +2,14 @@ package routers
 
 import (
 	"errors"
+	"net/http"
+
 	"github.com/DreamSoft-LLC/oryan/database"
 	"github.com/DreamSoft-LLC/oryan/models"
 	"github.com/DreamSoft-LLC/oryan/utils"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"net/http"
 )
 
 type requestBody struct {
@@ -39,7 +40,7 @@ func SetupAuthRoutes(router *gin.Engine) {
 			var result models.Associate
 
 			//	check if credential in Associate
-			err := database.FindDocument(models.Collection.Associate, bson.D{{"email", body.Email}}).Decode(&result)
+			err := database.FindDocument(models.Collection.Associate, bson.D{{Key: "email", Value: body.Email}}).Decode(&result)
 			if err != nil {
 				if errors.Is(err, mongo.ErrNoDocuments) {
 					c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid login credentials"})

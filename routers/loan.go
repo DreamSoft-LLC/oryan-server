@@ -1,16 +1,19 @@
 package routers
 
 import (
+	"fmt"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/DreamSoft-LLC/oryan/database"
 	"github.com/DreamSoft-LLC/oryan/models"
 	"github.com/DreamSoft-LLC/oryan/utils"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
 )
 
 func newLoanStruct(associate primitive.ObjectID) *models.Loan {
@@ -114,6 +117,13 @@ func SetupLoanRoutes(router *gin.Engine) {
 			auth, _ := context.Get("auth")
 			authentication := auth.(*utils.Authentication)
 
+			balanceDocumentID := os.Getenv("BALANCE_ID")
+
+			if balanceDocumentID == "" {
+				context.JSON(http.StatusInternalServerError, gin.H{"error": "Balance document ID not set"})
+				return
+			}
+
 			idStr := authentication.ID
 			if strings.HasPrefix(idStr, "ObjectID(") && strings.HasSuffix(idStr, ")") {
 				idStr = idStr[9 : len(idStr)-1]
@@ -150,6 +160,48 @@ func SetupLoanRoutes(router *gin.Engine) {
 				context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				context.Abort()
 				return
+			}
+
+			fixedID, _ := primitive.ObjectIDFromHex(balanceDocumentID)
+			var balanceData models.Balance
+			balanceDocument := database.FindDocument(models.Collection.Balance, bson.D{{Key: "_id", Value: fixedID}})
+
+			err = balanceDocument.Decode(&balanceData)
+
+			if err != nil {
+				context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				context.Abort()
+				return
+			}
+
+			balanceAmountSpent, _ := strconv.ParseFloat(balanceData.Spent, 64)
+			loanAmount, _ := strconv.ParseFloat(newLoan.Amount, 64)
+
+			if newLoan.Type == "credit" {
+				s := fmt.Sprintf("%f", balanceAmountSpent+loanAmount)
+
+				_, err := database.UpdateDocument(models.Collection.Balance, bson.D{{Key: "_id", Value: fixedID}}, bson.D{{Key: "$set", Value: bson.D{{Key: "spent", Value: s}}}})
+
+				if err != nil {
+					context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					context.Abort()
+					return
+				}
+
+			}
+
+			balanceAmount, _ := strconv.ParseFloat(balanceData.Amount, 64)
+			if newLoan.Type == "payoff" {
+				s := fmt.Sprintf("%f", balanceAmount+loanAmount)
+
+				_, err := database.UpdateDocument(models.Collection.Balance, bson.D{{Key: "_id", Value: fixedID}}, bson.D{{Key: "$set", Value: bson.D{{Key: "amount", Value: s}}}})
+
+				if err != nil {
+					context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					context.Abort()
+					return
+				}
+
 			}
 
 			context.JSON(http.StatusOK, gin.H{

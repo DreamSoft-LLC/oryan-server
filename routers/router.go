@@ -23,5 +23,7 @@ func SetupRouter() *gin.Engine {
 	SetupTransactionRoutes(router)
 	SetupClientRoutes(router)
 	SetupLoanRoutes(router)
+	SetupBalancesRoutes(router)
+	SetupMiscellaneousRoutes(router)
 	return router
 }

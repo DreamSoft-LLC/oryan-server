@@ -2,14 +2,16 @@ package routers
 
 import (
 	"fmt"
+	"net/http"
+	"os"
+	"strings"
+
 	"github.com/DreamSoft-LLC/oryan/database"
 	"github.com/DreamSoft-LLC/oryan/models"
 	"github.com/DreamSoft-LLC/oryan/utils"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"net/http"
-	"strings"
 
 	"strconv"
 	"time"
@@ -109,6 +111,13 @@ func SetupTransactionRoutes(router *gin.Engine) {
 			auth, _ := context.Get("auth")
 			authentication := auth.(*utils.Authentication)
 
+			balanceDocumentID := os.Getenv("BALANCE_ID")
+
+			if balanceDocumentID == "" {
+				context.JSON(http.StatusInternalServerError, gin.H{"error": "Balance document ID not set"})
+				return
+			}
+
 			idStr := authentication.ID
 			if strings.HasPrefix(idStr, "ObjectID(") && strings.HasSuffix(idStr, ")") {
 				idStr = idStr[9 : len(idStr)-1]
@@ -149,6 +158,34 @@ func SetupTransactionRoutes(router *gin.Engine) {
 				return
 			}
 
+			fixedID, _ := primitive.ObjectIDFromHex(balanceDocumentID)
+			var balanceData models.Balance
+			balanceDocument := database.FindDocument(models.Collection.Balance, bson.D{{Key: "_id", Value: fixedID}})
+
+			err = balanceDocument.Decode(&balanceData)
+
+			if err != nil {
+				context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				context.Abort()
+				return
+			}
+
+			balanceAmountSpent, _ := strconv.ParseFloat(balanceData.Spent, 64)
+			transactionAmount, _ := strconv.ParseFloat(newtransaction.Amount, 64)
+
+			if newtransaction.Kind == "buy" {
+				s := fmt.Sprintf("%f", balanceAmountSpent+transactionAmount)
+
+				_, err := database.UpdateDocument(models.Collection.Balance, bson.D{{Key: "_id", Value: fixedID}}, bson.D{{Key: "$set", Value: bson.D{{Key: "spent", Value: s}}}})
+
+				if err != nil {
+					context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					context.Abort()
+					return
+				}
+
+			}
+
 			context.JSON(http.StatusOK, gin.H{
 				"created":     insertResult,
 				"transaction": newtransaction,
@@ -157,10 +194,64 @@ func SetupTransactionRoutes(router *gin.Engine) {
 			return
 
 		})
-		// Get info of a transaction
-		//not important because all data are returned in the initial get all transaction face
-		//transactionRoutes.GET("/search/:id", func(context *gin.Context) {
-		//
-		//})
+
+		transactionRoutes.GET("/scales", func(context *gin.Context) {
+
+			auth, _ := context.Get("auth")
+			filterParam := context.Query("filter")
+			authentication := auth.(*utils.Authentication)
+
+			// Ensure the user is an admin
+			if authentication.Role != "admin" {
+				context.JSON(http.StatusUnauthorized, gin.H{
+					"message": "you do not have admin rights",
+				})
+				context.Abort()
+				return
+			}
+
+			now := time.Now()
+
+			// Build the filter using bson.M
+			filter := bson.M{}
+
+			if filterParam != "" {
+				switch filterParam {
+				case "today":
+					startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+					filter["created_at"] = bson.M{"$gte": startOfDay}
+				case "week":
+					startOfWeek := now.AddDate(0, 0, -int(now.Weekday()))
+					filter["created_at"] = bson.M{"$gte": startOfWeek}
+				case "month":
+					startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+					filter["created_at"] = bson.M{"$gte": startOfMonth}
+				case "year":
+					startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
+					filter["created_at"] = bson.M{"$gte": startOfYear}
+				}
+			}
+
+			// Initialize a map to hold the results for each scale (using lowercase)
+			results := make(map[string]primitive.Decimal128)
+
+			// Sum all scale transactions with the filter
+			err := database.SumAllScaleTransactions(models.Collection.Transaction, filter, "amount", results)
+			if err != nil {
+				context.JSON(http.StatusInternalServerError, gin.H{
+					"message": "Error fetching scale transactions",
+					"error":   err.Error(),
+				})
+				return
+			}
+
+			// Return the results as JSON (lowercase keys)
+			context.JSON(http.StatusOK, gin.H{
+				"bb":   results["bb"],   // lowercase for bb
+				"mini": results["mini"], // lowercase for mini
+				"gb":   results["gb"],   // lowercase for gb
+			})
+		})
+
 	}
 }

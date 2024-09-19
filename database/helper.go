@@ -3,12 +3,13 @@ package database
 import (
 	"context"
 	"fmt"
+	"log"
+
 	"github.com/DreamSoft-LLC/oryan/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log"
 )
 
 func InsertDocument(collection string, data primitive.D) (*mongo.InsertOneResult, error) {
@@ -140,4 +141,126 @@ func GetAllLoansWithAssociatesAndCustomers(filter bson.D, pageSize int, offset i
 	}
 
 	return loans, nil
+}
+
+func SumDocuments(collectionName string, filter bson.M, field string, result *primitive.Decimal128) error {
+	collection := Database.Collection(collectionName)
+
+	// Aggregation pipeline to convert the string amount to double and sum it
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: filter}},
+		{{Key: "$addFields", Value: bson.M{
+			"numericAmount": bson.M{"$toDouble": "$" + field}, // Convert string field to double
+		}}},
+		{{Key: "$group", Value: bson.M{
+			"_id":   nil,
+			"total": bson.M{"$sum": "$numericAmount"}, // Sum the numeric amount
+		}}},
+	}
+
+	cursor, err := collection.Aggregate(context.TODO(), pipeline)
+	if err != nil {
+		return err
+	}
+	defer cursor.Close(context.TODO())
+
+	if cursor.Next(context.TODO()) {
+		var aggregationResult struct {
+			Total interface{} `bson:"total"`
+		}
+		err = cursor.Decode(&aggregationResult)
+		if err != nil {
+			return err
+		}
+
+		// Handle different types for the sum result (int32, int64, float64)
+		switch v := aggregationResult.Total.(type) {
+		case int32:
+			*result, err = primitive.ParseDecimal128(fmt.Sprintf("%d", v))
+		case int64:
+			*result, err = primitive.ParseDecimal128(fmt.Sprintf("%d", v))
+		case float64:
+			*result, err = primitive.ParseDecimal128(fmt.Sprintf("%f", v))
+		default:
+			return fmt.Errorf("unexpected type for sum result: %T", v)
+		}
+
+		if err != nil {
+			return err
+		}
+	} else {
+		// No result, set the sum to 0
+		*result, _ = primitive.ParseDecimal128("0")
+	}
+
+	return nil
+}
+
+// SumAllScaleTransactions sums the total amount for all scale types ("BB", "Mini", "GB") with additional filters.
+func SumAllScaleTransactions(collectionName string, filter bson.M, field string, results map[string]primitive.Decimal128) error {
+	collection := Database.Collection(collectionName)
+
+	// Aggregation pipeline to filter, convert the string amount to double, and group by scaleType to sum
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: filter}}, // Apply the additional filters
+		{{Key: "$addFields", Value: bson.M{
+			"numericAmount": bson.M{"$toDouble": "$" + field}, // Convert string field to double
+		}}},
+		{{Key: "$group", Value: bson.M{
+			"_id":   bson.M{"$toLower": "$scale"},     // Group by scale type (BB, Mini, GB)
+			"total": bson.M{"$sum": "$numericAmount"}, // Sum the numeric amount per scale
+		}}},
+	}
+
+	cursor, err := collection.Aggregate(context.TODO(), pipeline)
+	if err != nil {
+		return err
+	}
+	defer cursor.Close(context.TODO())
+
+	// Loop through all the results and store them in the results map
+	for cursor.Next(context.TODO()) {
+		var aggregationResult struct {
+			ID    string      `bson:"_id"`   // scale type (BB, Mini, GB)
+			Total interface{} `bson:"total"` // sum result
+		}
+
+		err := cursor.Decode(&aggregationResult)
+		if err != nil {
+			return err
+		}
+
+		// Handle different types for the sum result (int32, int64, float64)
+		var result primitive.Decimal128
+		switch v := aggregationResult.Total.(type) {
+		case int32:
+			result, err = primitive.ParseDecimal128(fmt.Sprintf("%d", v))
+		case int64:
+			result, err = primitive.ParseDecimal128(fmt.Sprintf("%d", v))
+		case float64:
+			result, err = primitive.ParseDecimal128(fmt.Sprintf("%f", v))
+		default:
+			return fmt.Errorf("unexpected type for sum result: %T", v)
+		}
+
+		if err != nil {
+			return err
+		}
+
+		// Store the result in the map with scale type as the key
+		results[aggregationResult.ID] = result
+	}
+
+	// Handle the case where no results are returned, initializing all to 0 if absent
+	if _, ok := results["bb"]; !ok {
+		results["bb"], _ = primitive.ParseDecimal128("0")
+	}
+	if _, ok := results["mini"]; !ok {
+		results["mini"], _ = primitive.ParseDecimal128("0")
+	}
+	if _, ok := results["gb"]; !ok {
+		results["gb"], _ = primitive.ParseDecimal128("0")
+	}
+
+	return nil
 }
