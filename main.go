@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/DreamSoft-LLC/oryan/database"
 	"github.com/DreamSoft-LLC/oryan/routers"
 	"github.com/joho/godotenv"
-	"log"
-	"os"
 )
 
 func main() {
@@ -20,10 +21,10 @@ func main() {
 	PORT := os.Getenv("PORT")
 
 	if PORT == "" {
-		PORT = "8080"
+		PORT = "10000"
 	}
 
-	ADDRESS := fmt.Sprintf("localhost:%s", PORT)
+	ADDRESS := fmt.Sprintf(":%s", PORT)
 
 	//connect to database
 	database.Init()
