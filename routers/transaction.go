@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/net/context"
 
 	"strconv"
 	"time"
@@ -251,6 +252,89 @@ func SetupTransactionRoutes(router *gin.Engine) {
 				"mini": results["mini"], // lowercase for mini
 				"gb":   results["gb"],   // lowercase for gb
 			})
+		})
+
+		transactionRoutes.GET("/profit", func(ctx *gin.Context) {
+			// get all transactions made every day , and  make math operation on the transcation.type "buy" and "sell" to find the profit for eact day and return profit data for each day for a month duration
+
+			now := time.Now()
+			startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+
+			// Define a MongoDB filter to get transactions from the past month
+			filter := bson.M{
+				"created_at": bson.M{
+					"$gte": startOfMonth,
+					"$lte": now,
+				},
+			}
+
+			var transactions []models.Transaction
+
+			cursor, err := database.FindManyDocuments(models.Collection.Transaction, filter, bson.D{{Key: "created_at", Value: 1}})
+			if err != nil {
+				ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch transactions"})
+				return
+			}
+
+			if err := cursor.All(context.TODO(), &transactions); err != nil {
+				ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse transactions"})
+				return
+			}
+
+			// Initialize a map to store profit per day
+			profitPerDay := make(map[string]float64)
+			var bbTransactionProfitTotal, miniTransactionProfitTotal float64
+
+			// Loop over the transactions and calculate the daily profit
+			for _, transaction := range transactions {
+				// Format the date to group by day
+				day := transaction.CreatedAt.Format("2006-01-02")
+
+				// Convert the amount to float
+				amount, err := strconv.ParseFloat(transaction.Amount, 64)
+
+				if err != nil {
+					// Skip invalid transactions
+					continue
+				}
+
+				weight, err := strconv.ParseFloat(transaction.Weight, 64)
+
+				if err != nil {
+					// Skip invalid transactions
+					continue
+				}
+
+				rate, err := strconv.ParseFloat(transaction.Rate, 64)
+
+				if err != nil {
+					// Skip invalid transactions
+					continue
+				}
+
+				if transaction.Kind == "buy" {
+
+					if transaction.Scale == "bb" {
+						// add 4.60 to weight
+						bbTransactionProfitTotal += (rate * (weight + 4.60)) - amount
+
+					} else if transaction.Scale == "mini" {
+						// add 2.70 to weight
+						miniTransactionProfitTotal += (rate * (weight + 2.70)) - amount
+					}
+
+					profitPerDay[day] -= amount
+
+				} else if transaction.Kind == "sell" {
+
+					profitPerDay[day] += amount
+
+				}
+
+			}
+
+			ctx.JSON(http.StatusOK, gin.H{"profit_per_day": profitPerDay, "bb_profit": bbTransactionProfitTotal, "mini_profit": miniTransactionProfitTotal, "gb_profit": 0.00})
+
 		})
 
 	}

@@ -23,6 +23,13 @@ func InsertManyDocument(collection string, data []interface{}) (*mongo.InsertMan
 func FindDocument(collection string, filter primitive.D) *mongo.SingleResult {
 	return Database.Collection(collection).FindOne(context.TODO(), filter)
 }
+
+func FindManyDocuments(collection string, filter primitive.M, sort primitive.D) (*mongo.Cursor, error) {
+	// Define the options to sort the transactions by date
+	findOptions := options.Find().SetSort(sort)
+	return Database.Collection(collection).Find(context.TODO(), filter, findOptions)
+}
+
 func FindDocumentById(collection string, id string) *mongo.SingleResult {
 	objectId, err := primitive.ObjectIDFromHex(id)
 
