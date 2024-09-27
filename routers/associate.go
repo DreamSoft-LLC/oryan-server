@@ -77,11 +77,23 @@ func SetupAssociatesRoutes(router *gin.Engine) {
 		//get list of associate route
 		associateRoutes.GET("/", middlewares.IsAdminValidate(), func(c *gin.Context) {
 			//TODO: validate is user has permission to get associate list
-
+			var filter = bson.D{}
+			searchTerm := c.Query("q")
 			//get all associate
 			var associates []models.Associate
 
-			dataCursor, err := database.FindDocuments(models.Collection.Associate, bson.D{})
+			if searchTerm != "" {
+				searchFilter := bson.M{
+					"$or": []bson.M{
+						{"name": bson.M{"$regex": searchTerm, "$options": "i"}}, // case-insensitive search
+						{"email": bson.M{"$regex": searchTerm, "$options": "i"}},
+						{"phone_number": bson.M{"$regex": searchTerm, "$options": "i"}},
+					},
+				}
+				filter = append(filter, bson.E{Key: "$and", Value: bson.A{searchFilter}})
+			}
+
+			dataCursor, err := database.FindDocuments(models.Collection.Associate, filter)
 
 			if err != nil {
 				return

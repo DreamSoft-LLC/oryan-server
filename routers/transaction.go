@@ -37,9 +37,10 @@ func SetupTransactionRoutes(router *gin.Engine) {
 
 			filterParam := context.Query("filter")
 			pageParam := context.Query("page")
+			searchTerm := context.Query("q") // Add the search term
 			auth, _ := context.Get("auth")
 			authentication := auth.(*utils.Authentication)
-			pageSize := 10
+			pageSize := 100000
 			page := 1
 
 			fmt.Printf("Filter: %+v\n", filterParam)
@@ -55,8 +56,10 @@ func SetupTransactionRoutes(router *gin.Engine) {
 
 			// Add the associate_id filter for non-admin users
 			if authentication.Role != "admin" {
+				// Assuming there is an associate_id field in your document
 				filter = append(filter, bson.E{Key: "associate_id", Value: authentication.ID})
 			}
+
 			now := time.Now()
 			if filterParam != "" {
 				switch filterParam {
@@ -73,6 +76,18 @@ func SetupTransactionRoutes(router *gin.Engine) {
 					startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
 					filter = append(filter, bson.E{Key: "created_at", Value: bson.M{"$gte": startOfYear}})
 				}
+			}
+
+			// Add search term to filter (Assuming you are searching a field like 'description' or 'title')
+			if searchTerm != "" {
+				searchFilter := bson.M{
+					"$or": []bson.M{
+						{"amount": bson.M{"$regex": searchTerm, "$options": "i"}}, // case-insensitive search
+						{"mineral": bson.M{"$regex": searchTerm, "$options": "i"}},
+						{"scale": bson.M{"$regex": searchTerm, "$options": "i"}},
+					},
+				}
+				filter = append(filter, bson.E{Key: "$and", Value: bson.A{searchFilter}})
 			}
 
 			cursor, err := database.FindDocumentsQuery(models.Collection.Transaction, filter, pageSize, offset)
@@ -103,7 +118,6 @@ func SetupTransactionRoutes(router *gin.Engine) {
 			})
 
 			return
-
 		})
 
 		// Route to create new transaction
@@ -119,6 +133,8 @@ func SetupTransactionRoutes(router *gin.Engine) {
 				return
 			}
 
+			fixedID, _ := primitive.ObjectIDFromHex(balanceDocumentID)
+
 			idStr := authentication.ID
 			if strings.HasPrefix(idStr, "ObjectID(") && strings.HasSuffix(idStr, ")") {
 				idStr = idStr[9 : len(idStr)-1]
@@ -133,6 +149,17 @@ func SetupTransactionRoutes(router *gin.Engine) {
 				return
 			}
 
+			var balanceData models.Balance
+			balanceDocument := database.FindDocument(models.Collection.Balance, bson.D{{Key: "_id", Value: fixedID}})
+
+			err = balanceDocument.Decode(&balanceData)
+
+			if err != nil {
+				context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				context.Abort()
+				return
+			}
+
 			newtransaction := newTransactionStruct(objectId)
 
 			//get body in new transaction
@@ -142,6 +169,14 @@ func SetupTransactionRoutes(router *gin.Engine) {
 			}
 
 			err = models.ValidateStruct.Struct(newtransaction)
+
+			balanceTotalalAmountBalance, _ := strconv.ParseFloat(balanceData.Amount, 64)
+			transactionAmount, _ := strconv.ParseFloat(newtransaction.Amount, 64)
+
+			if transactionAmount > balanceTotalalAmountBalance {
+				context.JSON(http.StatusBadRequest, gin.H{"error": "Insuficient balance available contact admin"})
+				return
+			}
 
 			if err != nil {
 				//TODO: return an error response of the required fields left empty
@@ -159,20 +194,7 @@ func SetupTransactionRoutes(router *gin.Engine) {
 				return
 			}
 
-			fixedID, _ := primitive.ObjectIDFromHex(balanceDocumentID)
-			var balanceData models.Balance
-			balanceDocument := database.FindDocument(models.Collection.Balance, bson.D{{Key: "_id", Value: fixedID}})
-
-			err = balanceDocument.Decode(&balanceData)
-
-			if err != nil {
-				context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				context.Abort()
-				return
-			}
-
 			balanceAmountSpent, _ := strconv.ParseFloat(balanceData.Spent, 64)
-			transactionAmount, _ := strconv.ParseFloat(newtransaction.Amount, 64)
 
 			if newtransaction.Kind == "buy" {
 				s := fmt.Sprintf("%f", balanceAmountSpent+transactionAmount)

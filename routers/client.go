@@ -35,17 +35,30 @@ func SetupClientRoutes(router *gin.Engine) {
 		clientsRoutes.GET("/", func(c *gin.Context) {
 
 			pageParam := c.Query("page")
-
-			pageSize := 10
+			searchTerm := c.Query("q")
+			pageSize := 1000000000
 			page := 1
 
 			if pageParam != "" {
 				page, _ = strconv.Atoi(pageParam)
 			}
 
+			var filter = bson.D{}
+
+			if searchTerm != "" {
+				searchFilter := bson.M{
+					"$or": []bson.M{
+						{"name": bson.M{"$regex": searchTerm, "$options": "i"}}, // case-insensitive search
+						{"email": bson.M{"$regex": searchTerm, "$options": "i"}},
+						{"phone": bson.M{"$regex": searchTerm, "$options": "i"}},
+					},
+				}
+				filter = append(filter, bson.E{Key: "$and", Value: bson.A{searchFilter}})
+			}
+
 			offset := (page - 1) * pageSize
 
-			cursor, err := database.FindDocumentsQuery(models.Collection.Customer, bson.D{}, pageSize, offset)
+			cursor, err := database.FindDocumentsQuery(models.Collection.Customer, filter, pageSize, offset)
 
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{

@@ -88,45 +88,45 @@ func GetAllLoansWithAssociatesAndCustomers(filter bson.D, pageSize int, offset i
 	pipeline := mongo.Pipeline{
 		// Match stage to filter the documents
 		{
-			{"$match", filter},
+			{Key: "$match", Value: filter},
 		},
 		// Lookup Associate
 		{
-			{"$lookup", bson.D{
-				{"from", models.Collection.Associate},
-				{"localField", "associate_id"},
-				{"foreignField", "_id"},
-				{"as", "associate"},
+			{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: models.Collection.Associate},
+				{Key: "localField", Value: "associate_id"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "associate"},
 			}},
 		},
 		{
-			{"$unwind", bson.D{
-				{"path", "$associate"},
-				{"preserveNullAndEmptyArrays", true}, // Preserve null/empty if no associate found
+			{Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$associate"},
+				{Key: "preserveNullAndEmptyArrays", Value: true}, // Preserve null/empty if no associate found
 			}},
 		},
 		// Lookup Customer
 		{
-			{"$lookup", bson.D{
-				{"from", models.Collection.Customer},
-				{"localField", "customer_id"},
-				{"foreignField", "_id"},
-				{"as", "customer"},
+			{Key: "$lookup", Value: bson.D{
+				{Key: "from", Value: models.Collection.Customer},
+				{Key: "localField", Value: "customer_id"},
+				{Key: "foreignField", Value: "_id"},
+				{Key: "as", Value: "customer"},
 			}},
 		},
 		{
-			{"$unwind", bson.D{
-				{"path", "$customer"},
-				{"preserveNullAndEmptyArrays", true}, // Preserve null/empty if no customer found
+			{Key: "$unwind", Value: bson.D{
+				{Key: "path", Value: "$customer"},
+				{Key: "preserveNullAndEmptyArrays", Value: true}, // Preserve null/empty if no customer found
 			}},
 		},
 		// Skip stage for pagination (offset)
 		{
-			{"$skip", offset},
+			{Key: "$skip", Value: offset},
 		},
 		// Limit stage for pagination (page size)
 		{
-			{"$limit", pageSize},
+			{Key: "$limit", Value: pageSize},
 		},
 	}
 
