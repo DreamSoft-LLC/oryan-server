@@ -249,7 +249,7 @@ func SetupClientRoutes(router *gin.Engine) {
 			}
 
 			var transactions []models.Transaction
-			documents, err := database.FindDocuments(models.Collection.Customer, bson.D{{Key: "customer_id", Value: objID}})
+			documents, err := database.FindDocuments(models.Collection.Transaction, bson.D{{Key: "customer_id", Value: objID}})
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer_id"})
 				c.Abort()
