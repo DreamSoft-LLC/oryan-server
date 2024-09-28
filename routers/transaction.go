@@ -359,5 +359,87 @@ func SetupTransactionRoutes(router *gin.Engine) {
 
 		})
 
+		transactionRoutes.GET("/profit/filter", func(ctx *gin.Context) {
+			// get all transactions made every day , and  make math operation on the transcation.type "buy" and "sell" to find the profit for eact day and return profit data for each day for a month duration
+			filterParam := ctx.Query("filter")
+
+			var filter = bson.M{}
+
+			now := time.Now()
+			if filterParam != "" {
+				switch filterParam {
+				case "today":
+					startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+					filter = bson.M{"created_at": bson.M{"$gte": startOfDay, "$lte": now}}
+				case "week":
+					startOfWeek := now.AddDate(0, 0, -int(now.Weekday()))
+					filter = bson.M{"created_at": bson.M{"$gte": startOfWeek, "$lte": now}}
+				case "month":
+					startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+					filter = bson.M{"created_at": bson.M{"$gte": startOfMonth, "$lte": now}}
+				case "year":
+					startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
+					filter = bson.M{"created_at": bson.M{"$gte": startOfYear, "$lte": now}}
+				}
+			}
+
+			var transactions []models.Transaction
+
+			cursor, err := database.FindManyDocuments(models.Collection.Transaction, filter, bson.D{{Key: "created_at", Value: 1}})
+			if err != nil {
+				ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch transactions"})
+				return
+			}
+
+			if err := cursor.All(context.TODO(), &transactions); err != nil {
+				ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse transactions"})
+				return
+			}
+
+			var bbTransactionProfitTotal, miniTransactionProfitTotal float64
+
+			// Loop over the transactions and calculate the daily profit
+			for _, transaction := range transactions {
+
+				// Convert the amount to float
+				amount, err := strconv.ParseFloat(transaction.Amount, 64)
+
+				if err != nil {
+					// Skip invalid transactions
+					continue
+				}
+
+				weight, err := strconv.ParseFloat(transaction.Weight, 64)
+
+				if err != nil {
+					// Skip invalid transactions
+					continue
+				}
+
+				rate, err := strconv.ParseFloat(transaction.Rate, 64)
+
+				if err != nil {
+					// Skip invalid transactions
+					continue
+				}
+
+				if transaction.Kind == "buy" {
+
+					if transaction.Scale == "bb" {
+						// add 4.60 to weight
+						bbTransactionProfitTotal += (rate * (weight + 4.60)) - amount
+
+					} else if transaction.Scale == "mini" {
+						// add 2.70 to weight
+						miniTransactionProfitTotal += (rate * (weight + 2.70)) - amount
+					}
+
+				}
+
+			}
+
+			ctx.JSON(http.StatusOK, gin.H{"bb_profit": bbTransactionProfitTotal, "mini_profit": miniTransactionProfitTotal, "gb_profit": 0.00})
+
+		})
 	}
 }
