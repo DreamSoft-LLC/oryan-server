@@ -35,6 +35,7 @@ func SetupAssociatesRoutes(router *gin.Engine) {
 		associateRoutes.POST("/", middlewares.IsAdminValidate(), func(c *gin.Context) {
 
 			body := newAssociateStruct()
+
 			if err := c.ShouldBindJSON(&body); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return

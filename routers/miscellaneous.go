@@ -35,8 +35,8 @@ func SetupMiscellaneousRoutes(router *gin.Engine) {
 
 			filterParam := context.Query("filter")
 			pageParam := context.Query("page")
-			auth, _ := context.Get("auth")
-			authentication := auth.(*utils.Authentication)
+			// auth, _ := context.Get("auth")
+			// authentication := auth.(*utils.Authentication)
 			pageSize := 50
 			page := 1
 
@@ -52,9 +52,9 @@ func SetupMiscellaneousRoutes(router *gin.Engine) {
 			var filter = bson.D{}
 
 			// Add the associate_id filter for non-admin users
-			if authentication.Role != "admin" {
-				filter = append(filter, bson.E{Key: "associate_id", Value: authentication.ID})
-			}
+			// if authentication.Role != "admin" {
+			// 	filter = append(filter, bson.E{Key: "associate_id", Value: authentication.ID})
+			// }
 
 			now := time.Now()
 			if filterParam != "" {
