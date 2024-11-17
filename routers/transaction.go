@@ -320,29 +320,29 @@ func SetupTransactionRoutes(router *gin.Engine) {
 					continue
 				}
 
-				weight, err := strconv.ParseFloat(transaction.Weight, 64)
+				// weight, err := strconv.ParseFloat(transaction.Weight, 64)
 
-				if err != nil {
-					// Skip invalid transactions
-					continue
-				}
+				// if err != nil {
+				// 	// Skip invalid transactions
+				// 	continue
+				// }
 
-				rate, err := strconv.ParseFloat(transaction.Rate, 64)
+				// rate, err := strconv.ParseFloat(transaction.Rate, 64)
 
-				if err != nil {
-					// Skip invalid transactions
-					continue
-				}
+				// if err != nil {
+				// 	// Skip invalid transactions
+				// 	continue
+				// }
 
 				if transaction.Kind == "buy" {
 
 					if transaction.Scale == "bb" {
 						// add 4.60 to weight
-						bbTransactionProfitTotal += (rate * (weight + 4.60)) - amount
+						bbTransactionProfitTotal += (amount * (9.28 / 100))
 
 					} else if transaction.Scale == "mini" {
 						// add 2.70 to weight
-						miniTransactionProfitTotal += (rate * (weight + 2.70)) - amount
+						miniTransactionProfitTotal += (amount * (9.28 / 100))
 					}
 
 					profitPerDay[day] -= amount
@@ -409,29 +409,29 @@ func SetupTransactionRoutes(router *gin.Engine) {
 					continue
 				}
 
-				weight, err := strconv.ParseFloat(transaction.Weight, 64)
+				// weight, err := strconv.ParseFloat(transaction.Weight, 64)
 
-				if err != nil {
-					// Skip invalid transactions
-					continue
-				}
+				// if err != nil {
+				// 	// Skip invalid transactions
+				// 	continue
+				// }
 
-				rate, err := strconv.ParseFloat(transaction.Rate, 64)
+				// rate, err := strconv.ParseFloat(transaction.Rate, 64)
 
-				if err != nil {
-					// Skip invalid transactions
-					continue
-				}
+				// if err != nil {
+				// 	// Skip invalid transactions
+				// 	continue
+				// }
 
 				if transaction.Kind == "buy" {
 
 					if transaction.Scale == "bb" {
 						// add 4.60 to weight
-						bbTransactionProfitTotal += (rate * (weight + 4.60)) - amount
+						bbTransactionProfitTotal += (amount * (9.28 / 100))
 
 					} else if transaction.Scale == "mini" {
 						// add 2.70 to weight
-						miniTransactionProfitTotal += (rate * (weight + 2.70)) - amount
+						miniTransactionProfitTotal += (amount * (9.28 / 100))
 					}
 
 				}
