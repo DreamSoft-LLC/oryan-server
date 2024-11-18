@@ -87,3 +87,14 @@ type Customer struct {
 	CreatedAt   time.Time          `json:"created_date" bson:"created_date"`
 	UpdatedAt   time.Time          `json:"updated_date" bson:"updated_date"`
 }
+
+// Stash struct
+type Stash struct {
+	ID          primitive.ObjectID `json:"id" bson:"_id"`                              // Unique identifier for each customer
+	AssociateID primitive.ObjectID `json:"associate_id" bson:"associate_id"`           // Foreign key referencing Associate
+	Weight      string             `json:"weight" bson:"weight" validate:"required"`   //	Weight of the mineral
+	Mineral     string             `json:"mineral" bson:"mineral" validate:"required"` // Mineral gold or diamond
+	Amount      string             `json:"amount" bson:"amount" validate:"required"`   // Amount money given to seller
+	CreatedAt   time.Time          `json:"created_date" bson:"created_date"`
+	UpdatedAt   time.Time          `json:"updated_date" bson:"updated_date"`
+}
