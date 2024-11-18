@@ -1,9 +1,10 @@
 package routers
 
 import (
+	"time"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"time"
 )
 
 func SetupRouter() *gin.Engine {
@@ -25,5 +26,6 @@ func SetupRouter() *gin.Engine {
 	SetupLoanRoutes(router)
 	SetupBalancesRoutes(router)
 	SetupMiscellaneousRoutes(router)
+	SetupStashRoutes(router)
 	return router
 }
