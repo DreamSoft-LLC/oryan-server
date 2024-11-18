@@ -338,7 +338,7 @@ func SetupTransactionRoutes(router *gin.Engine) {
 
 					if transaction.Scale == "bb" {
 						// add 4.60 to weight
-						bbTransactionProfitTotal += (amount * (9.28 / 100))
+						bbTransactionProfitTotal += (amount * (15.81 / 100))
 
 					} else if transaction.Scale == "mini" {
 						// add 2.70 to weight
@@ -427,7 +427,7 @@ func SetupTransactionRoutes(router *gin.Engine) {
 
 					if transaction.Scale == "bb" {
 						// add 4.60 to weight
-						bbTransactionProfitTotal += (amount * (9.28 / 100))
+						bbTransactionProfitTotal += (amount * (15.81 / 100))
 
 					} else if transaction.Scale == "mini" {
 						// add 2.70 to weight
