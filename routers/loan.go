@@ -36,7 +36,7 @@ func SetupLoanRoutes(router *gin.Engine) {
 			pageParam := context.Query("page")
 			// auth, _ := context.Get("auth")
 			// authentication := auth.(*utils.Authentication)
-			pageSize := 10
+			pageSize := 1000000
 			page := 1
 
 			if pageParam != "" {
