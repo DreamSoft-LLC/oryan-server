@@ -1,7 +1,9 @@
 package routers
 
 import (
+	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -77,6 +79,15 @@ func SetupStashRoutes(router *gin.Engine) {
 			auth, _ := c.Get("auth")
 			authentication := auth.(*utils.Authentication)
 
+			balanceDocumentID := os.Getenv("BALANCE_ID")
+
+			if balanceDocumentID == "" {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Balance document ID not set"})
+				return
+			}
+
+			fixedID, _ := primitive.ObjectIDFromHex(balanceDocumentID)
+
 			idStr := authentication.ID
 			if strings.HasPrefix(idStr, "ObjectID(") && strings.HasSuffix(idStr, ")") {
 				idStr = idStr[9 : len(idStr)-1]
@@ -110,6 +121,17 @@ func SetupStashRoutes(router *gin.Engine) {
 				return
 			}
 
+			var balanceData models.Balance
+			balanceDocument := database.FindDocument(models.Collection.Balance, bson.D{{Key: "_id", Value: fixedID}})
+
+			err = balanceDocument.Decode(&balanceData)
+
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				c.Abort()
+				return
+			}
+
 			insertResult, err := database.InsertDocument(models.Collection.Stash, utils.ConvertStructPrimitive(newShash))
 
 			if err != nil {
@@ -120,6 +142,22 @@ func SetupStashRoutes(router *gin.Engine) {
 			}
 
 			newShash.ID = insertResult.InsertedID.(primitive.ObjectID)
+
+			// Update the balance
+
+			balanceTotalalAmountBalance, _ := strconv.ParseFloat(balanceData.Amount, 64)
+
+			transactionAmount, _ := strconv.ParseFloat(newShash.Amount, 64)
+
+			newBalance := fmt.Sprintf("%f", balanceTotalalAmountBalance-transactionAmount)
+
+			_, err = database.UpdateDocument(models.Collection.Balance, bson.D{{Key: "_id", Value: fixedID}}, bson.D{{Key: "$set", Value: bson.D{{Key: "amount", Value: newBalance}}}})
+
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				c.Abort()
+				return
+			}
 
 			c.JSON(http.StatusOK, gin.H{
 				"stash":   newShash,
