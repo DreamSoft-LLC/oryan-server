@@ -208,6 +208,18 @@ func SetupTransactionRoutes(router *gin.Engine) {
 				}
 
 			}
+			if newtransaction.Kind == "sell" {
+				newBalance := fmt.Sprintf("%f", balanceTotalalAmountBalance+transactionAmount)
+
+				_, err := database.UpdateDocument(models.Collection.Balance, bson.D{{Key: "_id", Value: fixedID}}, bson.D{{Key: "$set", Value: bson.D{{Key: "amount", Value: newBalance}}}})
+
+				if err != nil {
+					context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					context.Abort()
+					return
+				}
+
+			}
 
 			context.JSON(http.StatusOK, gin.H{
 				"created":     insertResult,
